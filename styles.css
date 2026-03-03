@@ -10,16 +10,19 @@
 }
 
 *{ box-sizing: border-box; }
-html,body{ height: 100%; }
+html, body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+}
 
 body{
   margin: 0;
   font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
-  background:
-    radial-gradient(900px 500px at 20% -10%, rgba(139,92,246,.35), transparent 60%),
-    radial-gradient(900px 500px at 100% 20%, rgba(34,197,94,.18), transparent 60%),
-    radial-gradient(900px 500px at 0% 100%, rgba(59,130,246,.15), transparent 60%),
-    var(--bg);
+  background-image: url(fotos/grr.png);
+  background-size: cover; 
+  background-position: center;
+  background-repeat: no-repeat; 
   color: var(--text);
   padding: 18px;
 }
@@ -27,11 +30,16 @@ body{
 .app{
   max-width: 980px;
   margin: 0 auto;
-  background: var(--card);
   border: 1px solid var(--line);
   border-radius: var(--radius);
   box-shadow: var(--shadow);
   overflow: hidden;
+  background-image: url(fotos/cina.jpg);
+  background-size: cover; 
+  background-position: center;
+  background-repeat: no-repeat; 
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
 }
 
 header{
@@ -42,7 +50,7 @@ header{
   justify-content: space-between;
   padding: 16px 16px 12px 16px;
   border-bottom: 1px solid var(--line);
-  background: linear-gradient(to bottom, rgba(255,255,255,.06), rgba(255,255,255,.02));
+  background-color: rgb(52, 0, 240,.40);
 }
 
 .left{
@@ -53,8 +61,9 @@ header{
 }
 .title{
   font-size: 18px;
-  font-weight: 750;
+  font-weight: 900;
   letter-spacing: .2px;
+  text-align: center;
 }
 .subtitle{
   font-size: 13px;
@@ -75,7 +84,7 @@ button, select, input[type="file"]{
 
 .btn{
   border: 1px solid var(--line);
-  background: rgba(255,255,255,.06);
+  background: rgb(252, 9, 252,.40);
   color: var(--text);
   padding: 9px 12px;
   border-radius: 12px;
@@ -83,12 +92,12 @@ button, select, input[type="file"]{
   transition: transform .06s ease, background .12s ease, border-color .12s ease;
   user-select: none;
 }
-.btn:hover{ background: rgba(255,255,255,.10); border-color: rgba(255,255,255,.22); }
+.btn:hover{ background: rgb(252, 9, 252,.40); border-color: rgb(252, 9, 252,.40); }
 .btn:active{ transform: translateY(1px); }
-.btn.primary{ background: rgba(139,92,246,.22); border-color: rgba(139,92,246,.45); }
-.btn.primary:hover{ background: rgba(139,92,246,.28); }
-.btn.danger{ background: rgba(239,68,68,.18); border-color: rgba(239,68,68,.38); }
-.btn.ok{ background: rgba(34,197,94,.16); border-color: rgba(34,197,94,.35); }
+.btn.primary{ background: rgb(252, 9, 252,.40); border-color: rgb(252, 9, 252,.40); }
+.btn.primary:hover{ background: rgba(192, 209, 189, 0.28); }
+.btn.danger{ background: rgb(252, 9, 252,.40); border-color: rgb(252, 9, 252,.40); }
+.btn.ok{ background: rgb(252, 9, 252,.40); border-color: rgb(252, 9, 252,.40); }
 .btn.ghost{ background: transparent; }
 
 .monthPick{
@@ -114,8 +123,8 @@ button, select, input[type="file"]{
 .dow div{
   padding: 6px 8px;
   border-radius: 12px;
-  background: rgba(255,255,255,.03);
-  border: 1px solid rgba(255,255,255,.08);
+  background: rgba(255, 0, 157,.2);
+  border: 1px solid rgba(251, 255,.14);
   text-align: center;
 }
 
@@ -126,8 +135,8 @@ button, select, input[type="file"]{
 }
 
 .day{
-  border: 1px solid rgba(255,255,255,.12);
-  background: rgba(255,255,255,.04);
+  border: 1px solid rgb(251, 255,.14);
+  background: rgba(255, 0, 157,.10);
   border-radius: 16px;
   min-height: 92px;
   padding: 10px;
@@ -142,7 +151,7 @@ button, select, input[type="file"]{
   border-color: rgba(255,255,255,.22);
 }
 .day:focus-visible{
-  box-shadow: 0 0 0 3px rgba(139,92,246,.35);
+  box-shadow: 0 0 0 3px rgba(29, 240, 1, 0.35);
 }
 
 .day.empty{
@@ -186,7 +195,7 @@ button, select, input[type="file"]{
 
 .day.today{
   border-color: rgba(139,92,246,.55);
-  background: rgba(139,92,246,.10);
+  background: rgba(117, 148, 233, 0.1);
 }
 
 /* Modal */
