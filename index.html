@@ -1,0 +1,557 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Calendario 2026</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+
+<body>
+  <main class="app">
+    <header>
+      <div class="left">
+        <div class="title">Calendario 2026</div>
+        <div class="subtitle">Click en un día para notas + color. Se guarda en tu navegador.</div>
+      </div>
+
+      <div class="controls">
+        <button class="btn" id="prevBtn">◀</button>
+        <select class="monthPick" id="monthSelect" aria-label="Seleccionar mes"></select>
+        <button class="btn" id="nextBtn">▶</button>
+
+        <button class="btn primary" id="todayBtn">Hoy</button>
+        <button class="btn ok" id="exportBtn">Exportar</button>
+
+        <label class="btn" for="importFile" style="cursor:pointer;">
+          Importar
+        </label>
+        <input id="importFile" type="file" accept="application/json" hidden />
+
+        <button class="btn danger" id="resetAllBtn" title="Borra todo lo guardado">
+          Reset
+        </button>
+      </div>
+    </header>
+
+    <section class="gridWrap">
+      <div class="dow" id="dowRow"></div>
+      <div class="grid" id="calendarGrid"></div>
+    </section>
+  </main>
+
+  <!-- Modal -->
+  <div class="modalBack" id="modalBack" aria-hidden="true">
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+      <div class="modalHeader">
+        <div>
+          <div class="modalTitle" id="modalTitle">Editar día</div>
+          <div class="modalDate" id="modalDate"></div>
+        </div>
+        <button class="btn ghost" id="closeModalBtn" aria-label="Cerrar">✕</button>
+      </div>
+
+      <div class="modalBody">
+        <!-- Notas tipo app -->
+        <div class="notesApp">
+          <div class="notesHeader">
+            <input id="noteTitle" class="text" type="text" placeholder="Título de la nota (ej: Dentista)" />
+            <button id="addNoteBtn" class="btn ok" type="button" title="Agregar nota">+</button>
+          </div>
+
+          <div class="notesBody">
+            <div id="notesList" class="notesList"></div>
+
+            <div class="noteEditor">
+              <div class="noteEditorTop">
+                <div class="noteEditorTitle" id="selectedNoteTitle">Selecciona una nota</div>
+                <button class="btn danger" id="deleteNoteBtn" type="button" disabled>Eliminar</button>
+              </div>
+
+              <textarea id="noteContent" rows="8" placeholder="Aquí escribe el contenido..." disabled></textarea>
+
+              <div class="noteEditorActions">
+                <button id="saveNoteBtn" class="btn primary" type="button" disabled>Guardar nota</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Color -->
+        <div class="row">
+          <label class="field">
+            <span>Color (background)</span>
+            <input type="color" id="colorInput" />
+          </label>
+
+          <div class="hint">
+            Tip: aparece contador si hay notas guardadas.
+          </div>
+        </div>
+      </div>
+
+      <div class="modalFooter">
+        <button class="btn danger" id="clearDayBtn">Limpiar día</button>
+        <div class="spacer"></div>
+        <button class="btn" id="cancelBtn">Cancelar</button>
+        <button class="btn primary" id="saveBtn">Guardar</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    (() => {
+      const YEAR = 2026;
+      const STORAGE_KEY = "calendar_2026_notes_v3";
+
+      const MONTHS = ["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
+      const DOW = ["Lun","Mar","Mié","Jue","Vie","Sáb","Dom"];
+
+      const pad2 = (n) => String(n).padStart(2, "0");
+      const isoKey = (y, m, d) => `${y}-${pad2(m + 1)}-${pad2(d)}`;
+      const dowMonFirst = (jsDay) => (jsDay + 6) % 7;
+      const daysInMonth = (y, m) => new Date(y, m + 1, 0).getDate();
+
+      async function tryParseJSON(file) {
+        const text = await file.text();
+        return JSON.parse(text);
+      }
+
+      function loadStore() {
+        try {
+          const raw = localStorage.getItem(STORAGE_KEY);
+          if (!raw) return {};
+          const obj = JSON.parse(raw);
+          return (obj && typeof obj === "object") ? obj : {};
+        } catch {
+          return {};
+        }
+      }
+      function saveStore(data) {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+      }
+
+      function normalizeColor(c) {
+        if (!c || typeof c !== "string") return "";
+        const s = c.trim();
+        return /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(s) ? s : "";
+      }
+
+      function prettyDate(key) {
+        const [y, mm, dd] = key.split("-").map(Number);
+        return `${dd} de ${MONTHS[mm - 1]} de ${y}`;
+      }
+
+      const state = {
+        year: YEAR,
+        month: 0,
+        selectedKey: null,
+        selectedNoteIndex: null,
+        dataByDate: loadStore()
+      };
+
+      // DOM
+      const prevBtn = document.getElementById("prevBtn");
+      const nextBtn = document.getElementById("nextBtn");
+      const todayBtn = document.getElementById("todayBtn");
+      const exportBtn = document.getElementById("exportBtn");
+      const importFile = document.getElementById("importFile");
+      const resetAllBtn = document.getElementById("resetAllBtn");
+
+      const monthSelect = document.getElementById("monthSelect");
+      const dowRow = document.getElementById("dowRow");
+      const grid = document.getElementById("calendarGrid");
+
+      const modalBack = document.getElementById("modalBack");
+      const closeModalBtn = document.getElementById("closeModalBtn");
+      const cancelBtn = document.getElementById("cancelBtn");
+      const saveBtn = document.getElementById("saveBtn");
+      const clearDayBtn = document.getElementById("clearDayBtn");
+
+      const modalDate = document.getElementById("modalDate");
+      const colorInput = document.getElementById("colorInput");
+
+      const noteTitle = document.getElementById("noteTitle");
+      const addNoteBtn = document.getElementById("addNoteBtn");
+      const notesList = document.getElementById("notesList");
+
+      const selectedNoteTitle = document.getElementById("selectedNoteTitle");
+      const noteContent = document.getElementById("noteContent");
+      const saveNoteBtn = document.getElementById("saveNoteBtn");
+      const deleteNoteBtn = document.getElementById("deleteNoteBtn");
+
+      function getDayData(key) {
+        const raw = state.dataByDate[key];
+        if (!raw || typeof raw !== "object") return { items: [], color: "" };
+        return {
+          items: Array.isArray(raw.items) ? raw.items : [],
+          color: typeof raw.color === "string" ? raw.color : ""
+        };
+      }
+
+      function setDayData(key, day) {
+        state.dataByDate[key] = {
+          items: Array.isArray(day.items) ? day.items : [],
+          color: day.color || ""
+        };
+      }
+
+      init();
+
+      function init() {
+        // DOW
+        dowRow.innerHTML = "";
+        DOW.forEach(d => {
+          const el = document.createElement("div");
+          el.textContent = d;
+          dowRow.appendChild(el);
+        });
+
+        // Months
+        monthSelect.innerHTML = "";
+        MONTHS.forEach((name, idx) => {
+          const opt = document.createElement("option");
+          opt.value = String(idx);
+          opt.textContent = `${name} ${YEAR}`;
+          monthSelect.appendChild(opt);
+        });
+
+        const now = new Date();
+        if (now.getFullYear() === YEAR) state.month = now.getMonth();
+        monthSelect.value = String(state.month);
+
+        prevBtn.addEventListener("click", () => setMonth(state.month - 1));
+        nextBtn.addEventListener("click", () => setMonth(state.month + 1));
+        monthSelect.addEventListener("change", (e) => setMonth(Number(e.target.value)));
+
+        todayBtn.addEventListener("click", () => {
+          const n = new Date();
+          if (n.getFullYear() !== YEAR) { setMonth(0); return; }
+          setMonth(n.getMonth());
+          openDay(isoKey(YEAR, n.getMonth(), n.getDate()));
+        });
+
+        exportBtn.addEventListener("click", exportJSON);
+        importFile.addEventListener("change", onImportFile);
+
+        resetAllBtn.addEventListener("click", () => {
+          if (!confirm("¿Seguro? Esto borra todo lo guardado.")) return;
+          state.dataByDate = {};
+          saveStore(state.dataByDate);
+          renderMonth();
+        });
+
+        closeModalBtn.addEventListener("click", closeModal);
+        cancelBtn.addEventListener("click", closeModal);
+        modalBack.addEventListener("click", (e) => { if (e.target === modalBack) closeModal(); });
+
+        saveBtn.addEventListener("click", saveDay);
+        clearDayBtn.addEventListener("click", clearSelectedDay);
+
+        document.addEventListener("keydown", (e) => {
+          if (e.key === "Escape" && modalBack.classList.contains("open")) closeModal();
+        });
+
+        addNoteBtn.addEventListener("click", addNote);
+        saveNoteBtn.addEventListener("click", saveSelectedNote);
+        deleteNoteBtn.addEventListener("click", deleteSelectedNote);
+
+        renderMonth();
+      }
+
+      function setMonth(newMonth) {
+        state.month = Math.min(11, Math.max(0, newMonth));
+        monthSelect.value = String(state.month);
+        renderMonth();
+      }
+
+      // ✅ renderMonth CON CONTADOR
+      function renderMonth() {
+        grid.innerHTML = "";
+
+        const y = state.year;
+        const m = state.month;
+
+        const first = new Date(y, m, 1);
+        const offset = dowMonFirst(first.getDay());
+        const totalDays = daysInMonth(y, m);
+
+        const now = new Date();
+        const todayKey = (now.getFullYear() === y) ? isoKey(y, now.getMonth(), now.getDate()) : null;
+
+        for (let i = 0; i < 42; i++) {
+          const cell = document.createElement("button");
+          cell.type = "button";
+          cell.className = "day";
+
+          const dayNum = i - offset + 1;
+
+          if (dayNum < 1 || dayNum > totalDays) {
+            cell.classList.add("empty");
+            cell.disabled = true;
+            cell.innerHTML = `<div class="dayTop"><span class="dayNum"></span></div>`;
+            grid.appendChild(cell);
+            continue;
+          }
+
+          const key = isoKey(y, m, dayNum);
+          const saved = state.dataByDate[key] || {};
+          const items = Array.isArray(saved.items) ? saved.items : [];
+          const color = typeof saved.color === "string" ? saved.color : "";
+
+          const top = document.createElement("div");
+          top.className = "dayTop";
+
+          const num = document.createElement("span");
+          num.className = "dayNum";
+          num.textContent = String(dayNum);
+          top.appendChild(num);
+
+          cell.appendChild(top);
+
+          // ✅ CONTADOR: si hay notas, muestra número
+          if (items.length > 0) {
+            const count = document.createElement("span");
+            count.className = "noteCount";
+            count.textContent = String(items.length);
+            cell.appendChild(count);
+          }
+
+          if (todayKey && key === todayKey) cell.classList.add("today");
+
+          if (color) {
+            cell.style.background = color;
+            cell.style.borderColor = "rgba(255,255,255,.22)";
+          } else {
+            cell.style.background = "";
+            cell.style.borderColor = "";
+          }
+
+          cell.addEventListener("click", () => openDay(key));
+          grid.appendChild(cell);
+        }
+      }
+
+      function openDay(key) {
+        state.selectedKey = key;
+        state.selectedNoteIndex = null;
+
+        modalDate.textContent = prettyDate(key);
+
+        const day = getDayData(key);
+        colorInput.value = normalizeColor(day.color) || "#ffffff";
+
+        noteTitle.value = "";
+        renderNotesList(day.items);
+        setEditorDisabled(true);
+
+        modalBack.classList.add("open");
+        modalBack.setAttribute("aria-hidden", "false");
+        setTimeout(() => noteTitle.focus(), 0);
+      }
+
+      function closeModal() {
+        modalBack.classList.remove("open");
+        modalBack.setAttribute("aria-hidden", "true");
+        state.selectedKey = null;
+        state.selectedNoteIndex = null;
+      }
+
+      function renderNotesList(items) {
+        notesList.innerHTML = "";
+
+        if (!items.length) {
+          const empty = document.createElement("div");
+          empty.className = "hint";
+          empty.textContent = "No hay notas aún. Agrega una arriba con +.";
+          notesList.appendChild(empty);
+          return;
+        }
+
+        items.forEach((note, idx) => {
+          const btn = document.createElement("button");
+          btn.type = "button";
+          btn.className = "noteCard";
+          btn.textContent = (note.title || "").trim() || "Sin título";
+
+          if (idx === state.selectedNoteIndex) btn.classList.add("active");
+
+          btn.addEventListener("click", () => selectNote(idx));
+          notesList.appendChild(btn);
+        });
+      }
+
+      function setEditorDisabled(disabled) {
+        noteContent.disabled = disabled;
+        saveNoteBtn.disabled = disabled;
+        deleteNoteBtn.disabled = disabled;
+
+        if (disabled) {
+          selectedNoteTitle.textContent = "Selecciona una nota";
+          noteContent.value = "";
+        }
+      }
+
+      function selectNote(index) {
+        const key = state.selectedKey;
+        if (!key) return;
+
+        const day = getDayData(key);
+        const note = day.items[index];
+        if (!note) return;
+
+        state.selectedNoteIndex = index;
+
+        selectedNoteTitle.textContent = note.title || "Sin título";
+        noteContent.value = note.body || "";
+
+        setEditorDisabled(false);
+        renderNotesList(day.items);
+      }
+
+      function addNote() {
+        const key = state.selectedKey;
+        if (!key) return;
+
+        const title = (noteTitle.value || "").trim();
+        if (!title) {
+          alert("Pon un título para la nota.");
+          return;
+        }
+
+        const day = getDayData(key);
+        day.items.push({ title, body: "" });
+        setDayData(key, day);
+        saveStore(state.dataByDate);
+
+        noteTitle.value = "";
+
+        state.selectedNoteIndex = day.items.length - 1;
+        renderNotesList(day.items);
+        selectNote(state.selectedNoteIndex);
+
+        renderMonth(); // ✅ refresca contador
+      }
+
+      function saveSelectedNote() {
+        const key = state.selectedKey;
+        if (!key) return;
+        if (state.selectedNoteIndex === null) return;
+
+        const day = getDayData(key);
+        const note = day.items[state.selectedNoteIndex];
+        if (!note) return;
+
+        note.body = noteContent.value || "";
+        day.items[state.selectedNoteIndex] = note;
+
+        setDayData(key, day);
+        saveStore(state.dataByDate);
+
+        renderNotesList(day.items);
+        renderMonth();
+      }
+
+      function deleteSelectedNote() {
+        const key = state.selectedKey;
+        if (!key) return;
+        if (state.selectedNoteIndex === null) return;
+
+        const day = getDayData(key);
+        if (!day.items[state.selectedNoteIndex]) return;
+
+        if (!confirm("¿Eliminar esta nota?")) return;
+
+        day.items.splice(state.selectedNoteIndex, 1);
+        state.selectedNoteIndex = null;
+
+        if (day.items.length === 0 && !day.color) {
+          delete state.dataByDate[key];
+        } else {
+          setDayData(key, day);
+        }
+
+        saveStore(state.dataByDate);
+
+        renderNotesList(day.items);
+        setEditorDisabled(true);
+        renderMonth(); // ✅ refresca contador
+      }
+
+      function saveDay() {
+        if (!state.selectedKey) return;
+
+        const key = state.selectedKey;
+        const day = getDayData(key);
+
+        const cleanColor = String(colorInput.value || "").trim();
+        day.color = (cleanColor && cleanColor !== "#ffffff") ? cleanColor : "";
+
+        const hasAnything = (day.items && day.items.length > 0) || !!day.color;
+
+        if (!hasAnything) delete state.dataByDate[key];
+        else setDayData(key, day);
+
+        saveStore(state.dataByDate);
+        renderMonth();
+        closeModal();
+      }
+
+      function clearSelectedDay() {
+        if (!state.selectedKey) return;
+        if (!confirm("¿Limpiar TODAS las notas y el color de este día?")) return;
+
+        delete state.dataByDate[state.selectedKey];
+        saveStore(state.dataByDate);
+        renderMonth();
+        closeModal();
+      }
+
+      function exportJSON() {
+        const payload = {
+          version: 3,
+          year: YEAR,
+          exportedAt: new Date().toISOString(),
+          dataByDate: state.dataByDate
+        };
+
+        const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+        const url = URL.createObjectURL(blob);
+
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `calendario_${YEAR}_backup.json`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+
+        URL.revokeObjectURL(url);
+      }
+
+      async function onImportFile(e) {
+        const file = e.target.files?.[0];
+        e.target.value = "";
+        if (!file) return;
+
+        try {
+          const json = await tryParseJSON(file);
+          const imported = json?.dataByDate;
+
+          if (!imported || typeof imported !== "object") {
+            alert("Archivo inválido: no encontré dataByDate.");
+            return;
+          }
+
+          state.dataByDate = { ...state.dataByDate, ...imported };
+          saveStore(state.dataByDate);
+          renderMonth();
+          alert("Importación lista ✅");
+        } catch (err) {
+          console.error(err);
+          alert("No pude importar ese archivo. ¿Seguro que es un JSON válido?");
+        }
+      }
+    })();
+  </script>
+</body>
+</html>
